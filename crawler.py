@@ -58,7 +58,7 @@ class BaseRepoCrawler:
 				if self.match_file_list(author, repo_name):
 					status = helper.get_repo_status(repo)
 					self.logfile.write("Repo %s, status = "%(repo_name))
-					self.logfile.write(status)
+					self.logfile.write(str(status))
 					self.logfile.write("\n\n")
 
 	def query(self):
