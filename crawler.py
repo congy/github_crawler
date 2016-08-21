@@ -2,9 +2,12 @@ import requests
 import json
 import helper
 
+
 class BaseRepoCrawler:
-	def __init__(self):
-		self.index = 1
+	def __init__(self, login_info):
+		self.login_name = login_info['username']
+		self.login_password = login_info['password']
+		self.cur_page = 1
 		self.total_results = 0
 		self.logfile = open("log.txt", "w")
 	#args: langauge (required)
@@ -34,32 +37,51 @@ class BaseRepoCrawler:
 		return q
 	
 	def base_match_file_list(self, author, repo_name, f_list):
+		print ""
 		for fpath in f_list:
 			rq_url = "https://api.github.com/repos/%s/%s/contents/%s"%(author, repo_name, fpath)
-			response = requests.get(rq_url, verify=False)
-			data = json.loads(response.text)
-			if 'message' in data.keys() and data['message'] == 'Not Found':
+			print rq_url
+			response = requests.get(rq_url, auth=(self.login_name,self.login_password))
+			r_data = json.loads(response.text)
+			print r_data.keys()
+			if 'message' in r_data.keys():
 				return False
+		print "IS RAILS"
 		return True
+
+	def next_url(self, q_url):
+		if self.cur_page > 1:
+			q = "%s&page=%d"%(q_url, self.cur_page)
+		else:
+			q = q_url
+		self.cur_page += 1
+		
+		response = requests.get(q, auth=(self.login_name, self.login_password))
+		self.data = json.loads(response.text)
+		if 'message' in self.data.keys():
+			return False
+		else:
+			return True
 
 	def start_query(self):
 		#1. generate query
 		q = self.query()
 		print "query = %s"%q
-		response = requests.get(q, verify=False)
-		data = json.loads(response.text)
-		print "total_count = %d"%data["total_count"]
+		#response = requests.get(q, verify=False)
+		#self.data = json.loads(response.text)
+		#print "total_count = %d"%self.data["total_count"]
 	
 		#2. iterate over each repo
-		for repo in data["items"]:
-			repo_name = repo["name"]
-			author = repo["owner"]["login"]
-			if repo_name and author:
-				if self.match_file_list(author, repo_name):
-					status = helper.get_repo_status(repo)
-					self.logfile.write("Repo %s, status = "%(repo_name))
-					self.logfile.write(str(status))
-					self.logfile.write("\n\n")
+		while self.next_url(q):
+			for repo in self.data["items"]:
+				repo_name = repo["name"]
+				author = repo["owner"]["login"]
+				if repo_name and author:
+					if self.match_file_list(author, repo_name):
+						status = helper.get_repo_status(repo)
+						self.logfile.write("Repo %s, url = %s, status = "%(repo_name, repo["html_url"]))
+						self.logfile.write(str(status))
+						self.logfile.write("\n\n")
 
 	def query(self):
 		pass
